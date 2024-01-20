@@ -1,0 +1,17 @@
+.pipe__wrapper {
+    height: 100%;
+
+    position: absolute;
+
+    display: flex;
+    justify-content: space-between;
+    flex-direction: column;
+}
+
+.pipe__top {
+    background-color: blue;
+}
+
+.pipe__bottom {
+    background-color: blue;
+}

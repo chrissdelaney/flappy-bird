@@ -1,17 +1,30 @@
 .pipe__wrapper {
     height: 100%;
-
     position: absolute;
-
     display: flex;
     justify-content: space-between;
     flex-direction: column;
 }
 
-.pipe__top {
-    background-color: blue;
+.pipe__top, .pipe__bottom {
+    position: relative;
+    overflow: hidden;
 }
 
-.pipe__bottom {
-    background-color: blue;
+.pipe__top::before, .pipe__bottom::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: url('../../assets/img/stone_wall.png') center/cover repeat;
+    z-index: -1;
+}
+
+/* Specific styles for mobile devices */
+@media (max-width: 600px) {
+    .pipe__top::before, .pipe__bottom::before {
+        background-size: contain; /* Adjust size for smaller screens */
+    }
 }

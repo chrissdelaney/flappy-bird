@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useState, useLayoutEffect, useEffect} from "react";
 
 import "./Game.css";
 
@@ -7,35 +7,54 @@ import Pipe from "../Pipe/Pipe";
 import GameStart from "../GameStart/GameStart";
 import GameScore from "../GameScore/GameScore";
 
+import flap from "../../assets/audio/flap.wav";
+import crash from "../../assets/audio/crash.wav";
+
 let pipeIdCounter = 0;
 
 export default function Game() {
     //GAME CONTROLS
     const [gameActive, setGameActive] = React.useState(false);
+    const [lastScore, setLastScore] = React.useState(0);
     const [pipesMoving, setPipesMoving] = React.useState(false);
-    const [firstJump, setFirstJump] = React.useState(false);
-    const firstJumpRef = React.useRef(firstJump);
+    const [takenFirstJump, setTakenFirstJump] = React.useState(false);
+    const takenFirstJumpRef = React.useRef(takenFirstJump);
     const lastScoredPipeRef = React.useRef(null);
 
     React.useEffect(() => {
-        firstJumpRef.current = firstJump;
-    }, [firstJump]);
+        takenFirstJumpRef.current = takenFirstJump;
+    }, [takenFirstJump]);
 
     //GAME SETTINGS
     const GAME_FPS = 30;
     const GAME_WIDTH = Math.min(window.innerWidth, 400);
-    const GAME_HEIGHT = Math.min(window.innerHeight, 900);
+    const [GAME_HEIGHT, setGameHeight] = useState(0);
+
+    // Use useLayoutEffect to measure the game wrapper after it's been rendered
+    useLayoutEffect(() => {
+        const updateGameHeight = () => {
+            const gameWrapper = document.querySelector('.game__wrapper');
+            if (gameWrapper) {
+                setGameHeight(gameWrapper.clientHeight);
+            }
+        };
+
+        updateGameHeight(); // Measure immediately
+        window.addEventListener('resize', updateGameHeight); // Measure on resize
+        return () => window.removeEventListener('resize', updateGameHeight);
+    }, []);
+    
 
     const BIRD_X = 70;
-    const BIRD_SIZE = 40;
+    const [birdSize, setBirdSize] = React.useState(40);
     const BIRD_GRAVITY = 1;
     const BIRD_JUMP_ACCEL = 15;
 
     const PIPE_WIDTH = 50;
     const PIPE_OPENING_HEIGHT = 180;
     const PIPE_SPACE_BETWEEN = 200;
-    const PIPE_TOP_MAX_Y = GAME_HEIGHT/2 + 300;
-    const PIPE_TOP_MIN_Y = GAME_HEIGHT/2 - 300 + PIPE_SPACE_BETWEEN;
+    const PIPE_TOP_MAX_Y = GAME_HEIGHT/2 + Math.floor(GAME_HEIGHT/3);
+    const PIPE_TOP_MIN_Y = GAME_HEIGHT/2 - Math.floor(GAME_HEIGHT/3) + PIPE_SPACE_BETWEEN;
     const PIPE_X_SPEED = 4;
 
     const [gameScore, setGameScore] = React.useState(0);
@@ -58,21 +77,56 @@ export default function Game() {
     }
 
     const endGame = () => {
+        playCrashAudio();
         setPipesMoving(false);
-        setFirstJump(true);
-
+        setTakenFirstJump(false);
+        setLastScore(gameScore);
         runGameOverAnimation();
+        updateHighScore(gameScore);
         setTimeout(() => {
-            setGameActive(false);
+            setBirdSize(40);
+            setGameScore(0);
             setPipesArray([]);
+            setvY(0);
+            setBirdY(GAME_HEIGHT/2);
+            setGameActive(false);
         }, 1500);
     }
 
     const runGameOverAnimation = () => {
-        setInterval(() => {
-            setBirdY(oldY => Math.max(oldY - 1, 0));
-        }, 1000 / GAME_FPS)
+        let interval;
+        setTimeout(() => {
+            interval = setInterval(() => {
+                setBirdSize(oldSize => Math.max(oldSize * 0.95, 0));
+            }, 1000 / GAME_FPS);
+    
+            setTimeout(() => {
+                clearInterval(interval);
+            }, 1200);
+    
+        }, 300);
     }
+
+    const updateHighScore = (gameScore) => {
+        let highScore = localStorage.getItem("highScore");
+        if (!highScore) {
+            localStorage.setItem("highScore", gameScore);
+        }
+        else if (highScore < gameScore) {
+            localStorage.setItem("highScore", gameScore);
+        }
+    }
+
+
+    //SOUND EFFECTS
+    const playFlapAudio = () => {
+        new Audio(flap).play();
+    }
+
+    const playCrashAudio = () => {
+        new Audio(crash).play();
+    }
+    
 
 
 
@@ -91,8 +145,8 @@ export default function Game() {
 
     //MAIN FUNCTION TO UPDATE GAME STATE
     const updateGameState = () => {
-        //update bird position
-        if (firstJumpRef.current) {
+        // Apply gravity only after the first jump
+        if (takenFirstJumpRef.current) {
             setvY(prev_vY => {
                 const newVY = prev_vY - BIRD_GRAVITY;
                 setBirdY(prevBirdY => Math.max(prevBirdY + newVY, 0));
@@ -100,17 +154,35 @@ export default function Game() {
             });
         }
 
+
+
         //update pipe positions
         movePipes();
     }
 
-    //BIRD MOVEMENT FUNCTIONS
     const jump = (e) => {
-        if ((e.key === ' ' || e.code === 'Space') && !e.repeat) {
-            setFirstJump(true);
+        // Handle only spacebar for keyboard events
+        if (e.type === 'keydown' && (e.key !== ' ' && e.code !== 'Space')) {
+            return;
+        }
+    
+        if (!gameActive) {
+            startGame();
+        } else {
+            // Game is active, make the bird jump
+            if (!takenFirstJumpRef.current) {
+                setTakenFirstJump(true);
+            }
+            if (!pipesMoving) {
+                return;
+            }
             setvY(BIRD_JUMP_ACCEL);
+            playFlapAudio();
         }
     }
+    
+
+
     
 
     React.useEffect(() => {
@@ -121,10 +193,10 @@ export default function Game() {
     });
 
     React.useEffect(() => {
-        window.addEventListener('touch', jump);
+        window.addEventListener('touchstart', jump, { passive: false });
         return () => {
-            window.removeEventListener('touch ', jump);
-        };
+            window.removeEventListener('touchstart', jump);
+        };    
     });
 
     //PIPE FUNCTIONS
@@ -176,7 +248,7 @@ React.useEffect(() => {
     const pipeBackX = pipe.x + PIPE_WIDTH;
 
     const birdFrontX = BIRD_X;
-    const birdBackX = BIRD_X + BIRD_SIZE;
+    const birdBackX = BIRD_X + birdSize;
 
     const isBirdWithinPipeHorizontal = 
         (birdFrontX < pipeBackX && birdBackX > pipeFrontX);
@@ -189,7 +261,7 @@ React.useEffect(() => {
         }
 
     //VERTICAL CALCULATIONS
-    const birdTopY = birdY + BIRD_SIZE;
+    const birdTopY = birdY + birdSize;
     const isBirdHittingPipeVertical = 
         (birdTopY > pipe.top || birdY < pipe.bottom);
 
@@ -197,40 +269,32 @@ React.useEffect(() => {
     if (isBirdWithinPipeHorizontal && isBirdHittingPipeVertical) {
         endGame();
     }
+
+    //END GAME IF BIRD IS ABOVE OR BELOW BOUNDS
+    if (birdY === 0 || birdTopY >= GAME_HEIGHT) {
+        endGame();
+    }
+
 }, [pipesArray, birdY]);
 
 
-    return (
+return (
         <div className="game__wrapper">
-            {
-                gameActive
-                ?
+            {GAME_HEIGHT > 0 && (
                 <>
-                    <GameScore 
-                        gameScore={gameScore}
-                    />
-                    <Bird 
-                        birdY={birdY}
-                        birdX={BIRD_X}
-                        birdSize={BIRD_SIZE}
-                    />
-                    {
-                        pipesArray.map((pipe, index) => (
-                            <Pipe 
-                                key={index}
-                                id={index + 1}
-                                gameHeight={GAME_HEIGHT}
-                                pipeWidth={PIPE_WIDTH}
-                                {...pipe}
-                            />
-                        ))
-                    }             
+                    {gameActive ? (
+                        <>
+                            <GameScore gameScore={gameScore} />
+                            <Bird birdY={birdY} birdX={BIRD_X} birdSize={birdSize} rotation={vY} />
+                            {pipesArray.map((pipe, index) => (
+                                <Pipe key={index} id={index + 1} gameHeight={GAME_HEIGHT} pipeWidth={PIPE_WIDTH} {...pipe} />
+                            ))}
+                        </>
+                    ) : (
+                        <GameStart startGame={startGame} lastScore={lastScore} />
+                    )}
                 </>
-                :
-                <GameStart 
-                    startGame={startGame}
-                />
-            }
+            )}
         </div>
-    )
+    );
 }

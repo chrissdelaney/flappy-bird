@@ -1,7 +1,7 @@
 .game__wrapper {
-    height: min(100vh, 900px);
+    height: min(calc(var(--app-height)), 900px); /* Adjust height for mobile Safari */
     width: min(100vw, 400px);
-
+    
     position: relative;
     overflow: hidden;
 
@@ -16,7 +16,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: url('../../../public/assets/img/georgetown_pixelated.png') center center / cover no-repeat;
+    background: url('../../assets/img/georgetown_pixelated.png') center center / cover no-repeat;
     opacity: 0.2;
     z-index: -1;
 }
